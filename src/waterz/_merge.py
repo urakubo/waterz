@@ -451,6 +451,29 @@ def merge_dust(
     counts = np.zeros(max_id + 1, dtype=np.uint64)
     counts[ids] = cnts
 
+    if rg_affs.size == 0:
+        # No boundaries are available for merging.
+        # Still remove segments smaller than dust_th.
+        keep = (counts > 0) & (counts >= dust_th)
+        keep[0] = False  # Label 0 is always background.
+
+        # Assign consecutive IDs to surviving segments.
+        # Removed segments and background map to zero.
+        remap = np.cumsum(keep, dtype=np.uint64)
+        remap[~keep] = 0
+
+        # Apply one z-plane at a time to avoid a full-volume temporary.
+        for plane in seg:
+            plane[:] = remap[plane]
+
+        print(
+            "dust_merge: empty region graph; merged 0 edges, "
+            f"{int(np.count_nonzero(keep))} segments remain",
+            flush=True,
+        )
+        return seg
+
+    # A nonempty graph follows the original implementation.
     _c_merge(seg, rg_affs, id1, id2, counts, size_th, weight_th, dust_th)
     return seg
 
